@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -5,10 +6,13 @@ import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 ALGORITHM = "HS256"
 
@@ -65,3 +69,25 @@ def decode_access_token(token: str, settings: Settings) -> uuid.UUID | None:
         return uuid.UUID(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
+
+
+async def seed_initial_user(session: AsyncSession, settings: Settings) -> None:
+    email = settings.seed_user_email
+    password = settings.seed_user_password
+
+    if not email or not password:
+        logger.info("seed user skipped", extra={"reason": "credentials_not_configured"})
+        return
+
+    result = await session.execute(select(User).where(User.email == email))
+    if result.scalar_one_or_none() is not None:
+        return
+
+    session.add(User(email=email, password_hash=hash_password(password.get_secret_value())))
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        return
+
+    logger.info("seed user created", extra={"email": email})
