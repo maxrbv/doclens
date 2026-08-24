@@ -67,6 +67,7 @@ services:
 
   migrate:
     build: .
+    image: doclens-backend
     command: alembic upgrade head
     env_file: .env
     environment: *backend-env
@@ -77,6 +78,7 @@ services:
 
   api:
     build: .
+    image: doclens-backend
     env_file: .env
     environment: *backend-env
     volumes:

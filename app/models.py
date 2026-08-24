@@ -3,6 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-__all__ = ["Base", "Chunk", "Document", "DocumentStatus", "QueryLog", "QueryMode"]
+__all__ = ["Base", "Chunk", "Document", "DocumentStatus", "QueryLog", "QueryMode", "User"]
 
 
 class DocumentStatus(StrEnum):
@@ -32,6 +33,16 @@ class QueryMode(StrEnum):
     KNN = "knn"
     RRF = "rrf"
     ASK = "ask"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(320), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Document(Base):
@@ -103,7 +114,9 @@ class QueryLog(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(default=None)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), default=None
+    )
 
     query_text: Mapped[str] = mapped_column(Text)
     mode: Mapped[str] = mapped_column(String(8))
