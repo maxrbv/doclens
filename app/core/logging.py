@@ -31,6 +31,7 @@ _NOISY_LOGGERS = (
     "sqlalchemy.engine",
     "aio_pika",
     "aiormq",
+    "faststream",
 )
 
 

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.middleware import RequestIdMiddleware
+from app.core.broker import broker
 from app.core.config import get_settings
 from app.core.database import get_engine, get_session_factory
 from app.core.logging import setup_logging
@@ -19,7 +20,9 @@ setup_logging()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     async with get_session_factory()() as session:
         await seed_initial_user(session, settings)
+    await broker.start()
     yield
+    await broker.stop()
     await get_engine().dispose()
 
 

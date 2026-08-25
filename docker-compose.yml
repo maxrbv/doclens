@@ -107,6 +107,24 @@ services:
       retries: 10
       start_period: 15s
 
+  worker:
+    build: .
+    image: doclens-backend
+    command: python -m app.workers.consumer
+    env_file: .env
+    environment: *backend-env
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:
   opensearch_data:
