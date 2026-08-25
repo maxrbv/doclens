@@ -1,13 +1,24 @@
+import hashlib
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
 from app.core.config import get_settings
 
+TEMP_DIR = ".tmp"
+
 
 class StoragePathError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class StagedFile:
+    path: Path
+    size_bytes: int
+    checksum: str
 
 
 def _root() -> Path:
@@ -29,23 +40,34 @@ def _resolve(relative_path: str) -> Path:
     return target
 
 
-async def save(content: AsyncIterator[bytes], relative_path: str) -> int:
-    target = _resolve(relative_path)
-    target.parent.mkdir(parents=True, exist_ok=True)
+async def stage(content: AsyncIterator[bytes]) -> StagedFile:
+    temp_dir = _root() / TEMP_DIR
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    path = temp_dir / f"{uuid.uuid4().hex}.part"
 
-    tmp = target.with_name(f"{target.name}.{uuid.uuid4().hex}.part")
+    hasher = hashlib.sha256()
     size = 0
     try:
-        with tmp.open("wb") as handle:
+        with path.open("wb") as handle:
             async for chunk in content:
                 size += len(chunk)
+                hasher.update(chunk)
                 handle.write(chunk)
-        tmp.replace(target)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
         raise
 
-    return size
+    return StagedFile(path=path, size_bytes=size, checksum=hasher.hexdigest())
+
+
+def commit_staged(staged: StagedFile, relative_path: str) -> None:
+    target = _resolve(relative_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    staged.path.replace(target)
+
+
+def discard_staged(staged: StagedFile) -> None:
+    staged.path.unlink(missing_ok=True)
 
 
 def open_stream(relative_path: str) -> BinaryIO:
